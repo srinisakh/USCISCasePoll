@@ -121,6 +121,7 @@ def on_status_fetch(status, casenumber):
     if not os.path.exists(record_filepath):
         with open(record_filepath, 'w') as f:
             f.write(status)
+        changed = True
     # there is prior status, read it and compare with current
     else:
         with open(record_filepath, 'r+') as f:
@@ -195,7 +196,7 @@ def print_case_info(opts, name, casenumber):
     if changed:
         print(report)
     else:
-        print(casenumber, "not changed")
+        print(casenumber, ",", form_type, ",", "Not changed")
     # email notification on status change
     if opts.receivers and changed:
         recv_list = opts.receivers.split(',')
