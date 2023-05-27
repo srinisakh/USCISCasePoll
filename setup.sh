@@ -9,7 +9,7 @@ if [[ ! -e $SCRIPT_NAME ]]; then
 	exit -1 
 fi
 
-if ! [[ (hash 'python') && (hash 'pip') ]] ; then
+if ! [[ (hash 'python') && (hash 'pipenv') ]] ; then
 	echo "check your PATH, make sure python and pip are available"
 	exit -1 
 fi
