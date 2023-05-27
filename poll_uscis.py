@@ -28,8 +28,7 @@ FILENAME_LASTSTATUS = os.path.join(sys.path[0], "LAST_STATUS_{0}.txt")
 # email: myname@gmail.com
 # password: xxxx
 # smtpserver: smtp.gmail.com:587
-EMAIL_NOTICE_SENDER = {"email": "", "password": "", "smtpserver": ""}
-
+EMAIL_NOTICE_SENDER = {"email": "srinisakh@gmail.com", "password": "", "smtpserver": "smtp.gmail.com:587"}
 
 def poll_optstatus(casenumber):
     """
@@ -64,7 +63,6 @@ def poll_optstatus(casenumber):
     code = STATUS_OK if status else STATUS_ERROR
     details = doc('.text-center p').text()
     return (code, status, details)
-
 
 def send_mail(sentfrom,
               to,
@@ -105,7 +103,6 @@ def send_mail(sentfrom,
         print("successfully sent the mail !")
     except:
         print('failed to send a mail ')
-
 
 def on_status_fetch(status, casenumber):
     """
@@ -150,6 +147,14 @@ def get_days_since_received(status_detail):
     span = (today - recv_date).days
     return span
 
+def get_form_type(status_detail):
+    "parse case status and computes number of days elapsed since case-received"
+    form_type_regex = re.compile(r'.*your Form (I-\d+).*')
+    m = form_type_regex.match(status_detail)
+    if not m:
+        return -1
+    return m.group(1)
+
 def load_cases(filename):
     with open(filename, 'r') as file:
         data = yaml.safe_load(file)
@@ -164,13 +169,23 @@ def print_case_info(opts, name, casenumber):
     if code == STATUS_ERROR:
         print("The case number %s is invalid." % casenumber)
         return
+    
+    form_type = get_form_type(detail)
+    days_elapsed = get_days_since_received(detail)
+    if "Other" in name:
+        if form_type == "I-131":
+            print(casenumber, status, days_elapsed)
+        else:
+            return
+
     # report format
     report_format = ("-------  {0} USCIS Case [{1}]---------"
                      "\nCurrent Status: [{2}]"
-                     "\nDays since received: [{3}]")
+                     "\nDays since received: [{3}]"
+                     "\nForm type: [{4}]")
     days_elapsed = get_days_since_received(detail)
 
-    report = report_format.format(name, casenumber, status, days_elapsed)
+    report = report_format.format(name, casenumber, status, days_elapsed, form_type)
     # compare with last status
     changed, laststatus = on_status_fetch(status, casenumber)
     # generate report
@@ -230,4 +245,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
