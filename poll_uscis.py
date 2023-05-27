@@ -172,11 +172,8 @@ def print_case_info(opts, name, casenumber):
     
     form_type = get_form_type(detail)
     days_elapsed = get_days_since_received(detail)
-    if "Other" in name:
-        if form_type == "I-131":
-            print(casenumber, status, days_elapsed)
-        else:
-            return
+    if "Other" in name and form_type != "I-131":
+        return
 
     # report format
     report_format = ("-------  {0} USCIS Case [{1}]---------"
@@ -195,7 +192,10 @@ def print_case_info(opts, name, casenumber):
     if opts.detailOn:
         report = '\n'.join((report, "\nDetail:\n\n%s" % detail))
     # console output
-    print(report)
+    if changed:
+        print(report)
+    else:
+        print(casenumber, "not changed")
     # email notification on status change
     if opts.receivers and changed:
         recv_list = opts.receivers.split(',')
