@@ -9,6 +9,7 @@ import os
 import sys
 import os.path
 import re
+import yaml
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -135,61 +136,41 @@ def on_status_fetch(status, casenumber):
                 f.write(status)
     return (changed, last_status)
 
+def get_days_since_received(status_detail):
+    "parse case status and computes number of days elapsed since case-received"
+    date_regex = re.compile(r'^(As of|On) (\w+ +\d+, \d{4}), .*')
+    m = date_regex.match(status_detail)
+    if not m:
+        return -1
+    datestr = m.group(2)
+    if not datestr:
+        return -1
+    recv_date = datetime.strptime(datestr, "%B %d, %Y").date()
+    today = date.today()
+    span = (today - recv_date).days
+    return span
 
-def main():
-    def get_days_since_received(status_detail):
-        "parse case status and computes number of days elapsed since case-received"
-        date_regex = re.compile(r'^(As of|On) (\w+ +\d+, \d{4}), .*')
-        m = date_regex.match(status_detail)
-        datestr = m.group(2)
-        if not datestr:
-            return -1
-        recv_date = datetime.strptime(datestr, "%B %d, %Y").date()
-        today = date.today()
-        span = (today - recv_date).days
-        return span
+def load_cases(filename):
+    with open(filename, 'r') as file:
+        data = yaml.safe_load(file)
+        for name, casetypes in data.items():
+            for casetype, casenumbers in casetypes.items():
+                for casenumber in casenumbers:
+                    yield name, casetype, casenumber
 
-    usage = """
-    usage: %prog -c <case_number> [options]
-    """
-    parser = OptionParser(usage=usage)
-    parser.add_option(
-        '-c',
-        '--casenumber',
-        type='string',
-        action='store',
-        dest='casenumber',
-        default='YSC1790016391',
-        help='the USCIS case receipt number you can to query')
-    parser.add_option(
-        '-d',
-        '--detail',
-        action='store_true',
-        dest='detailOn',
-        help="request details about the status returned")
-    parser.add_option(
-        '--mailto',
-        action='store',
-        dest='receivers',
-        help=(
-            "optionally add one or more emails addresses, separated by comma,"
-            " to send the notification mail to"))
-    opts, args = parser.parse_args()
-    casenumber = opts.casenumber
-    if not casenumber:
-        raise parser.error("No casenumber is provided")
+def print_case_info(opts, name, casenumber):
     # poll status
     code, status, detail = poll_optstatus(casenumber)
     if code == STATUS_ERROR:
         print("The case number %s is invalid." % casenumber)
         return
     # report format
-    report_format = ("-------  Your USCIS Case [{0}]---------"
-                     "\nCurrent Status: [{1}]"
-                     "\nDays since received: [{2}]")
+    report_format = ("-------  {0} USCIS Case [{1}]---------"
+                     "\nCurrent Status: [{2}]"
+                     "\nDays since received: [{3}]")
     days_elapsed = get_days_since_received(detail)
 
-    report = report_format.format(casenumber, status, days_elapsed)
+    report = report_format.format(name, casenumber, status, days_elapsed)
     # compare with last status
     changed, laststatus = on_status_fetch(status, casenumber)
     # generate report
@@ -206,6 +187,47 @@ def main():
         subject = "Your USCIS Case %s Status Change Notice " % casenumber
         send_mail("USCIS Case Status Notify", recv_list, subject, report)
 
+def main():
+    usage = """
+    usage: %prog -c <case_number> [options]
+    """
+    parser = OptionParser(usage=usage)
+    parser.add_option(
+        '-f',
+        '--casesfile',
+        type='string',
+        action='store',
+        dest='casefilename',
+        #default='uscis_cases.yaml',
+        help='the USCIS cases in yaml format')
+    parser.add_option(
+        '-c',
+        '--casenumber',
+        type='string',
+        action='store',
+        dest='casenumber',
+        default='LIN2390097816',
+        help='the USCIS case receipt number you can to query')
+    parser.add_option(
+        '-d',
+        '--detail',
+        action='store_true',
+        dest='detailOn',
+        help="request details about the status returned")
+    parser.add_option(
+        '--mailto',
+        action='store',
+        dest='receivers',
+        help=(
+            "optionally add one or more emails addresses, separated by comma,"
+            " to send the notification mail to"))
+    opts, args = parser.parse_args()
+    if opts.casefilename:
+        for name, casetype, casenumber in load_cases(opts.casefilename):
+            print_case_info(opts, f'{name} ({casetype})', casenumber)
+    else:
+        print_case_info(opts, 'Your', opts.casenumber)
 
 if __name__ == '__main__':
     main()
+
